@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <title>Spelling Ninja</title>
+  <style>
+    @font-face {
+      font-family: mareka;
+      src: url("./MAREKA-PersonalUse.otf") format("opentype");
+    }
+
+    body { font-family: mareka; font-size: 150%; }
+    h1 { font-size: 350%; }
+    .word-card { border: 1px solid gainsboro; padding: 1em; border-radius: 16px; margin-bottom: 1em; margin-top: 1em;}
+    .word-card.incorrect { background-color: #ee3377; }
+    .word-card.incorrect .idx { color: black; }
+    select { display: inline-block; font-family: Helvetica,Segoe UI,sans-serif; }
+    input { display: inline-block; min-width: 200px; font-size:125%; font-family: mareka; }
+    ::placeholder { color: #555; }
+    button { font-family: mareka; border-radius: 16px; }
+    .idx { display: inline-block; min-width: 1.5em; font-weight: bold; color:#0096bfab; padding-right: 1em; font-family:Helvetica,Segoe UI,sans-serif;}
+    .hidden { display: none; }
+    #btnCheck { font-size: 200%; margin: 1em auto; width: 100%; }
+    #error { color: #ee3377; font-size: 200%; }
+    #perfect { color: #0096bfab; font-size: 250%; }
+    a { text-decoration: underline; }
+    .non-ninja { font-family: Helvetica,Segoe UI,sans-serif; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Spelling Ninja</h1>
+  </header>
+
+  <div>
+    <template id="optTemplate"><option name="name" value="value"></option></template>
+
+    <div>Select the unit here <select id="select"></select></div>
+
+    <template id="rowTemplate">
+      <div class="word-card">
+        <div class="controls" role="group" aria-label="Audio controls and input">
+          <span class="idx"></span>
+          <button class="play1" type="button" aria-label="Play audio 1"><span class="icon">▶</span></button>
+          <button class="play2" type="button" aria-label="Play audio 2"><span class="icon">▶</span></button>
+          <input class="answer" type="text" inputmode="latin-name" autocomplete="off" spellcheck="false" placeholder="Spell it here" />
+        </div>
+      </div>
+    </template>
+
+    <div id="list">
+    </div>
+
+      <div>
+        <button id="btnCheck" class="play1 hidden" type="button" aria-label="Check my answers">Check My Answers</button>
+      </div>
+
+    <div id="error" class="error" role="status" aria-live="assertive"></div>
+    <div id="perfect" class="perfect" role="status" aria-live="assertive"></div>
+  </div>
+
+  <script>
+    let data = {};
+    const selectEl = document.getElementById('select');
+    const listEl = document.getElementById('list');
+    const errorEl = document.getElementById('error');
+    const perfectEl = document.getElementById('perfect');
+    const loadBtn = document.getElementById('loadBtn');
+    const rowTpl = document.getElementById('rowTemplate');
+    const optTpl = document.getElementById('optTemplate');
+    const btnCheck = document.getElementById('btnCheck');
+
+    let currentAudio = null; // ensure only one plays at a time
+
+    function stopCurrent() {
+      if (currentAudio) {
+        currentAudio.pause();
+        try { currentAudio.currentTime = 0; } catch(_){}
+        currentAudio = null;
+      }
+    }
+
+    function play(src) {
+      stopCurrent();
+      const a = new Audio(src);
+      a.addEventListener('ended', () => { currentAudio = null; });
+      a.play().catch(err => {
+        console.error('Audio play failed', err);
+        errorEl.textContent = 'Audio play was blocked by the browser - ' + err;
+      });
+      currentAudio = a;
+    }
+
+    function loadWords() {
+      listEl.innerHTML = '';
+      try {
+        let unit = data.units.find(x => x.name == selectEl.options[selectEl.selectedIndex].text);
+        if (!unit) {
+          btnCheck.classList.add('hidden');
+          return;
+        }
+
+        unit.words.forEach((item, idx) => {
+          const node = rowTpl.content.cloneNode(true);
+          const btn1 = node.querySelector('.play1');
+          const btn2 = node.querySelector('.play2');
+          const input = node.querySelector('.answer');
+          const idxEl = node.querySelector('.idx');
+
+          btn1.addEventListener('click', () => play(item.audio1));
+          btn2.addEventListener('click', () => play(item.audio2));
+
+          // Keyboard shortcuts when focused in the input
+          input.addEventListener('keydown', (e) => {
+            if (e.key === '1') { e.preventDefault(); play(item.audio1); }
+            if (e.key === '2') { e.preventDefault(); play(item.audio2); }
+          });
+
+          input.dataset.target = btoa(item.word);
+          idxEl.textContent = `#${idx + 1}`;
+
+          listEl.appendChild(node);
+        });
+
+        btnCheck.classList.remove('hidden');
+
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = `Failed to load: ${err.message}`;
+      }
+    }
+
+    async function loadData() {
+      errorEl.textContent = '';
+      listEl.innerHTML = '';
+      try {
+        const res = await fetch("./index.json", { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+        if (!data || !Array.isArray(data.units)) throw new Error('Malformed JSON: missing units array');
+
+        selectEl.innerHTML = '<option disabled selected></option>';
+
+        data.units.forEach ((item, idx) => {
+          const node = optTpl.content.cloneNode(true);
+          node.querySelector('option').appendChild(document.createTextNode(item.name));
+          selectEl.appendChild(node);
+        });
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = `Failed to load: ${err.message}`;
+      }
+    }
+
+    function checkAnswers() {
+      let answerCount = 0;
+      let correctAnswerCount = 0;
+      document.querySelectorAll('.word-card input').forEach((item, idx) => {
+        let key = atob(item.getAttribute('data-target')).toLowerCase().trim();
+        let studentAnswer = item.value.toLowerCase().trim();
+
+        if (key == studentAnswer) {
+          correctAnswerCount++;
+          item.parentElement.parentElement.classList.remove('incorrect');
+        } else {
+          item.parentElement.parentElement.classList.add('incorrect');
+        }
+
+        answerCount++;
+      });
+
+      if (answerCount == correctAnswerCount) {
+        errorEl.innerHTML = '';
+        perfectEl.innerHTML = 'You got <span class="non-ninja">100%!</span><br />You are a SPELLING NINJA<span class="non-ninja">!</span>';
+      } else {
+        perfectEl.innerHTML = '';
+        errorEl.innerHTML = 'You got <span class="non-ninja">' + Math.round(correctAnswerCount/answerCount*100, 0) + '%. ' + correctAnswerCount + '</span> out of <span class="non-ninja">' + answerCount + '.  </span><br />Do you want to <a href=".">try again</a><span class="non-ninja">?</span>';
+      }
+    }
+
+    loadData();
+    selectEl.addEventListener('change', () => loadWords());
+    btnCheck.addEventListener('click', () => checkAnswers());
+  </script>
+</body>
+</html>

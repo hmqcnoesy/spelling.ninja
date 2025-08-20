@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TTS Drill Player</title>
+  <style>
+    :root {
+      --radius: 14px;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: #0b1020; color: #e8ebf1;
+    }
+    header {
+      padding: 18px 22px; position: sticky; top: 0; z-index: 10;
+      background: linear-gradient(180deg, rgba(11,16,32,0.95), rgba(11,16,32,0.75) 60%, rgba(11,16,32,0));
+      backdrop-filter: saturate(1.1) blur(6px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    header h1 { font-size: 18px; margin: 0 0 6px; letter-spacing: 0.2px; }
+    header .meta { font-size: 13px; opacity: 0.8; }
+
+    .container { max-width: 980px; margin: 0 auto; padding: 18px; }
+
+    .controls {
+      display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: center;
+      margin-bottom: 12px;
+    }
+    .controls input[type="text"] {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06); color: inherit; outline: none;
+    }
+    .controls input[type="text"]::placeholder { color: #b6bfd6; opacity: 0.7; }
+
+    .word-card {
+      background: radial-gradient(1200px 300px at 20% -10%, rgba(111,143,255,0.08), rgba(255,255,255,0) 46%),
+                  linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      padding: 14px; margin: 10px 0; position: relative;
+    }
+
+    .word-card small.idx { opacity: 0.65; font-size: 12px; }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+      padding: 8px 12px; border-radius: 999px; cursor: pointer;
+      user-select: none;
+    }
+    .pill[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .pill .icon { font-size: 12px; }
+
+    .right { text-align: right; }
+
+    .status { font-size: 12px; opacity: 0.75; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+
+    footer { color: #b6bfd6; opacity: 0.8; font-size: 12px; padding: 28px 18px 60px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Minimal Audio Drill</h1>
+    <div class="meta">Fetch JSON → render items with two play buttons and an input per word.</div>
+  </header>
+
+  <div class="container">
+    <div class="controls">
+      <label for="jsonUrl" class="status">JSON URL</label>
+      <input id="jsonUrl" type="text" placeholder="/path/to/words.json" />
+      <input id="audioBase" type="text" placeholder="Audio base URL (optional, e.g. /audio/)" />
+      <button id="loadBtn" class="pill" title="Load words"><span class="icon">⟳</span> Load</button>
+    </div>
+
+    <div id="list" class="grid" aria-live="polite"></div>
+
+    <template id="rowTemplate">
+      <div class="word-card">
+        <div class="controls" role="group" aria-label="Audio controls and input">
+          <button class="pill play1" type="button" aria-label="Play audio 1"><span class="icon">▶</span> Audio 1</button>
+          <button class="pill play2" type="button" aria-label="Play audio 2"><span class="icon">▶</span> Audio 2</button>
+          <input class="answer" type="text" inputmode="latin-name" autocomplete="off" spellcheck="false" placeholder="Type what you hear…" />
+          <small class="idx"></small>
+        </div>
+      </div>
+    </template>
+
+    <div id="error" class="status" role="status" aria-live="assertive"></div>
+  </div>
+
+  <footer>Tip: press <kbd>1</kbd> or <kbd>2</kbd> while focused in the input to play Audio 1 or 2.</footer>
+
+  <script>
+    // ▶ Configure these defaults to your setup
+    const DEFAULT_JSON_URL = "unit01.json"; // replace with your endpoint path
+    const DEFAULT_AUDIO_BASE = "/audio/";        // e.g., "/audio/" if files live in /audio/
+
+    // ————————————————————————————————————————————————————————————————————————
+    const listEl = document.getElementById('list');
+    const errorEl = document.getElementById('error');
+    const jsonUrlEl = document.getElementById('jsonUrl');
+    const audioBaseEl = document.getElementById('audioBase');
+    const loadBtn = document.getElementById('loadBtn');
+    const rowTpl = document.getElementById('rowTemplate');
+
+    let currentAudio = null; // ensure only one plays at a time
+
+    function stopCurrent() {
+      if (currentAudio) {
+        currentAudio.pause();
+        try { currentAudio.currentTime = 0; } catch(_){}
+        currentAudio = null;
+      }
+    }
+
+    function play(src) {
+      stopCurrent();
+      const a = new Audio(src);
+      a.addEventListener('ended', () => { currentAudio = null; });
+      a.play().catch(err => {
+        console.error('Audio play failed', err);
+        errorEl.textContent = 'Audio play was blocked by the browser. Click a play button again.';
+      });
+      currentAudio = a;
+    }
+
+    function resolveUrl(base, file) {
+      if (!file) return '';
+      try {
+        // If file is already absolute URL
+        return new URL(file, window.location.origin).href;
+      } catch (_) {
+        // Fallback join
+        return (base || '') + file;
+      }
+    }
+
+    async function loadWords(url, audioBase) {
+      errorEl.textContent = '';
+      listEl.innerHTML = '';
+      try {
+        const res = await fetch(url, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data || !Array.isArray(data.words)) throw new Error('Malformed JSON: missing words array');
+
+        data.words.forEach((item, idx) => {
+          const node = rowTpl.content.cloneNode(true);
+          const btn1 = node.querySelector('.play1');
+          const btn2 = node.querySelector('.play2');
+          const input = node.querySelector('.answer');
+          const idxEl = node.querySelector('.idx');
+
+          const src1 = resolveUrl(audioBase, item.audio1);
+          const src2 = resolveUrl(audioBase, item.audio2);
+
+          btn1.addEventListener('click', () => play(src1));
+          btn2.addEventListener('click', () => play(src2));
+
+          // Keyboard shortcuts when focused in the input
+          input.addEventListener('keydown', (e) => {
+            if (e.key === '1') { e.preventDefault(); play(src1); }
+            if (e.key === '2') { e.preventDefault(); play(src2); }
+          });
+
+          // store answer target (not displayed)
+          input.dataset.target = (item.word || '').trim();
+          idxEl.textContent = `#${idx + 1}`;
+
+          listEl.appendChild(node);
+        });
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = `Failed to load: ${err.message}`;
+      }
+    }
+
+    // Initialize form values and load once
+    jsonUrlEl.value = DEFAULT_JSON_URL;
+    audioBaseEl.value = DEFAULT_AUDIO_BASE;
+    loadBtn.addEventListener('click', () => loadWords(jsonUrlEl.value.trim(), audioBaseEl.value.trim()));
+
+    // Auto-load on first paint
+    loadWords(DEFAULT_JSON_URL, DEFAULT_AUDIO_BASE);
+  </script>
+</body>
+</html>
