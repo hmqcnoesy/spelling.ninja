@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <link rel="stylesheet" href="./water-light.css">
   <title>Spelling Ninja</title>
   <style>
     @font-face {
@@ -12,32 +12,33 @@
     }
 
     body { font-family: mareka; font-size: 150%; }
+    header { text-align: center; }
     h1 { font-size: 350%; }
     .word-card { border: 1px solid gainsboro; padding: 1em; border-radius: 16px; margin-bottom: 1em; margin-top: 1em;}
     .word-card.incorrect { background-color: #ee3377; }
     .word-card.incorrect .idx { color: black; }
     select { display: inline-block; font-family: Helvetica,Segoe UI,sans-serif; }
     input { display: inline-block; min-width: 200px; font-size:125%; font-family: mareka; }
-    ::placeholder { color: #555; }
+    ::placeholder { color: #bbb; }
     button { font-family: mareka; border-radius: 16px; }
     .idx { display: inline-block; min-width: 1.5em; font-weight: bold; color:#0096bfab; padding-right: 1em; font-family:Helvetica,Segoe UI,sans-serif;}
     .hidden { display: none; }
     #btnCheck { font-size: 200%; margin: 1em auto; width: 100%; }
-    #error { color: #ee3377; font-size: 200%; }
-    #perfect { color: #0096bfab; font-size: 250%; }
+    #error { color: #ee3377; font-size: 200%; text-align: center; }
+    #perfect { color: #0096bfab; font-size: 250%; text-align: center; }
     a { text-decoration: underline; }
     .non-ninja { font-family: Helvetica,Segoe UI,sans-serif; font-weight: bold; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Spelling Ninja</h1>
+    <h1><img style="display:inline; height:150px; vertical-align: middle;" src="./spellingninja2.png" />Spelling Ninja</h1>
   </header>
 
   <div>
     <template id="optTemplate"><option name="name" value="value"></option></template>
 
-    <div>Select the unit here <select id="select"></select></div>
+    <div style="text-align:center">Select the unit here <select id="select"></select></div>
 
     <template id="rowTemplate">
       <div class="word-card">
@@ -173,11 +174,17 @@
 
       if (answerCount == correctAnswerCount) {
         errorEl.innerHTML = '';
-        perfectEl.innerHTML = 'You got <span class="non-ninja">100%!</span><br />You are a SPELLING NINJA<span class="non-ninja">!</span>';
+        perfectEl.innerHTML = 'You got <span class="non-ninja">100%!</span><br />You are a SPELLING NINJA<span class="non-ninja">!</span><img src="./perfect.gif" />';
       } else {
         perfectEl.innerHTML = '';
-        errorEl.innerHTML = 'You got <span class="non-ninja">' + Math.round(correctAnswerCount/answerCount*100, 0) + '%. ' + correctAnswerCount + '</span> out of <span class="non-ninja">' + answerCount + '.  </span><br />Do you want to <a href=".">try again</a><span class="non-ninja">?</span>';
+        errorEl.innerHTML = 'You got <span class="non-ninja">' + Math.round(correctAnswerCount/answerCount*100, 0) + '%. ' + correctAnswerCount + '</span> out of <span class="non-ninja">' + answerCount + '.  </span><br />Do you want to <a href=".">start over</a><span class="non-ninja">?</span>';
       }
+
+      window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: 'smooth' });
+
+      setTimeout(function(){
+        window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: 'smooth' });
+      }, 1000);
     }
 
     loadData();
