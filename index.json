@@ -13,7 +13,7 @@
  {"word":"notch","audio1":"./audio/word_11.mp3","audio2":"./audio/sentence_11.mp3"},
  {"word":"stump","audio1":"./audio/word_12.mp3","audio2":"./audio/sentence_12.mp3"},
  {"word":"past","audio1":"./audio/word_13.mp3","audio2":"./audio/sentence_13.mp3"},
- {"word":"clinch","audio1":"./audio/word_14.mp3","audio2":"./audio/sentence_14.mp3"},
+ {"word":"cinch","audio1":"./audio/word_14.mp3","audio2":"./audio/sentence_14.mp3"},
  {"word":"guess","audio1":"./audio/word_15.mp3","audio2":"./audio/sentence_15.mp3"}]},
 {"name":"2","words":[{"word":"theme","audio1":"./audio/word_16.mp3","audio2":"./audio/sentence_16.mp3"},
  {"word":"folks","audio1":"./audio/word_17.mp3","audio2":"./audio/sentence_17.mp3"},
