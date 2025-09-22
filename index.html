@@ -17,6 +17,7 @@
     .word-card { border: 1px solid gainsboro; padding: 1em; border-radius: 16px; margin-bottom: 1em; margin-top: 1em;}
     .word-card.incorrect { background-color: #ee3377; }
     .word-card.incorrect .idx { color: black; }
+    .word-card .item-message { text-align: center; color: white; }
     select { display: inline-block; font-family: Helvetica,Segoe UI,sans-serif; }
     input { display: inline-block; min-width: 200px; font-size:125%; font-family: mareka; }
     ::placeholder { color: #bbb; }
@@ -48,6 +49,7 @@
           <button class="play2" type="button" aria-label="Play audio 2"><span class="icon">▶</span></button>
           <input class="answer" type="text" inputmode="latin-name" autocomplete="off" spellcheck="false" placeholder="Spell it here" />
         </div>
+        <div class="item-message"></div>
       </div>
     </template>
 
@@ -63,6 +65,7 @@
   </div>
 
   <script>
+    const maxBadGuessesPerWord = 3;
     let data = {};
     const selectEl = document.getElementById('select');
     const listEl = document.getElementById('list');
@@ -161,12 +164,26 @@
       document.querySelectorAll('.word-card input').forEach((item, idx) => {
         let key = atob(item.getAttribute('data-target')).toLowerCase().trim();
         let studentAnswer = item.value.toLowerCase().trim();
+        let wordCardElement = item.parentElement.parentElement;
+        let msgElement = wordCardElement.querySelector('.item-message');
 
         if (key == studentAnswer) {
           correctAnswerCount++;
-          item.parentElement.parentElement.classList.remove('incorrect');
+          wordCardElement.classList.remove('incorrect');
+          msgElement.innerHTML = '';
         } else {
-          item.parentElement.parentElement.classList.add('incorrect');
+          wordCardElement.classList.add('incorrect');
+
+          // doesn't count as a bad guess if it's blank
+          let badGuess = studentAnswer == "" ? 0 : 1;
+          let badGuessCount = badGuess + getBadGuessCount(key);
+          setBadGuessCount(key, badGuessCount);
+          let guessesRemaining = maxBadGuessesPerWord - badGuessCount;
+          msgElement.innerHTML = `${intToWord(guessesRemaining)} tr${(guessesRemaining == 1 ? 'y' : 'ies')} left`;
+
+          if (badGuessCount >= maxBadGuessesPerWord) {
+            item.disabled = true;
+          }
         }
 
         answerCount++;
@@ -175,16 +192,41 @@
       if (answerCount == correctAnswerCount) {
         errorEl.innerHTML = '';
         perfectEl.innerHTML = 'You got <span class="non-ninja">100%!</span><br />You are a SPELLING NINJA<span class="non-ninja">!</span><img src="./perfect.gif" />';
+
+        setTimeout(function(){
+          window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: 'smooth' });
+        }, 1000);
       } else {
         perfectEl.innerHTML = '';
         errorEl.innerHTML = 'You got <span class="non-ninja">' + Math.round(correctAnswerCount/answerCount*100, 0) + '%. ' + correctAnswerCount + '</span> out of <span class="non-ninja">' + answerCount + '.  </span><br />Do you want to <a href=".">start over</a><span class="non-ninja">?</span>';
       }
 
       window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: 'smooth' });
+    }
 
-      setTimeout(function(){
-        window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: 'smooth' });
-      }, 1000);
+    function intToWord(intValue) {
+      if (intValue > 9) return "Ten or more";
+      const words = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+      return words[intValue] ?? "Invalid";
+    }
+
+    function getBadGuessKey(word) {
+      const today = new Date().toISOString().split('T')[0]; // e.g., "2025-09-21"
+      return `${today}_${word}`;
+    }
+
+    function getBadGuessCount(word) {
+      const key = getBadGuessKey(word);
+
+      const storedValue = localStorage.getItem(key);
+      const intValue = parseInt(storedValue);
+
+      return isNaN(intValue) ? 0 : intValue;
+    }
+
+    function setBadGuessCount(word, count) {
+      const key = getBadGuessKey(word);
+      localStorage.setItem(key, count);
     }
 
     loadData();
